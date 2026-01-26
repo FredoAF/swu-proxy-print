@@ -209,6 +209,23 @@ def cleanup():
     shutil.make_archive(deckId, 'zip', deckId)
     shutil.rmtree(deckId)
 
+def cleanOldZips():
+    global printCount
+    printCount = 1
+    directory = os.listdir('.')
+    for item in directory:
+        if item.endswith(".zip"):
+            os.remove(item)
+            print("Removed "+item)
+
+def notify(msg):
+    requests.post("https://ntfy.sh/swu-proxy-farren", 
+      data=msg.encode(encoding='utf-8'),
+      headers={
+        "Title": "SWU",
+        "Tags": "bug"
+      })
+
 def getDeck():
     global printArray
     global deckId
@@ -244,8 +261,10 @@ def index():
 @app.route('/download', methods=['POST'])
 def download():
     global deckId
+    cleanOldZips()
     deckId = request.form.get('deckId')
     print(deckId)
+    notify(deckId)
     getDeck()
     # Logic to generate ZIP
     try:
@@ -255,24 +274,11 @@ def download():
             print(filename)
             return send_file(filename, as_attachment=True)
         else:
+            notify("Zip not found")
             return make_response(f"File '{filename}' not found.", 404)
     except Exception as e:
+        notify(str(e))
         return make_response(f"Error: {str(e)}", 500)
-    # zip_buffer = io.BytesIO()
-    # with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-    #     # Here you would typically fetch images based on the deck_id
-    #     # For now, we create a placeholder text file inside the zip
-    #     content = f"Proxy list for Deck ID: {deck_id}\nTarget Size: 6x4 Photo Print"
-    #     zip_file.writestr(f"deck_{deck_id}_manifest.txt", content)
-    
-    # zip_buffer.seek(0)
-    
-    # return send_file(
-    #     zip_buffer,
-    #     mimetype='application/zip',
-    #     as_attachment=True,
-    #     download_name=f"SWU_Proxies_{deck_id}.zip"
-    # )
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", debug=True, port=5000)
+    app.run(host="0.0.0.0", debug=False, port=5000)

@@ -65,6 +65,39 @@ HTML_TEMPLATE = """
         
         .status-text { color: #fff200; font-weight: bold; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
         .hidden { display: none; }
+        /* Floating Support Button */
+        .support-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #fff200;
+            color: #000;
+            padding: 12px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: transform 0.2s ease, background 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1000;
+        }
+        .support-btn:hover {
+            transform: scale(1.05);
+            background: #ffe600;
+        }
+        @media (max-width: 600px) {
+            .support-btn {
+                bottom: 15px;
+                right: 15px;
+                font-size: 0.75rem;
+                padding: 10px 16px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -100,6 +133,10 @@ HTML_TEMPLATE = """
         
         <p><strong>Usage Policy:</strong> These generated files are intended for <strong>personal, non-commercial use only</strong> (e.g., playtesting or proxying). Please support the official release by purchasing genuine cards from your local game store.</p>
     </div>
+
+    <a href="https://paypal.me/alexfarren" target="_blank" class="support-btn">
+         Buy me a booster pack
+    </a>
 
     <script>
         async function generateProxies() {
@@ -146,6 +183,7 @@ HTML_TEMPLATE = """
             }
         }
     </script>
+    
 </body>
 </html>
 """
@@ -241,6 +279,14 @@ class ProxyGenerator:
         shutil.rmtree(self.temp_dir)
         return zip_path
 
+def notify(msg):
+    requests.post("https://ntfy.sh/swu-proxy-farren", 
+      data=msg.encode(encoding='utf-8'),
+      headers={
+        "Title": "SWU",
+        "Tags": "bug"
+      })
+
 def verify_deck_id(input_str):
     """Clean and validate the deck ID."""
     deck_id = input_str.rstrip('/').split('/')[-1]
@@ -262,13 +308,13 @@ def download():
     
     if not deck_id:
         return "Invalid Deck ID", 400
-
+    notify(deck_id)
     generator = ProxyGenerator(deck_id)
     zip_file_path = generator.process_deck()
 
     if zip_file_path and os.path.exists(zip_file_path):
         return send_file(zip_file_path, as_attachment=True)
-    
+    notify("500 error")
     return "Failed to generate proxy deck.", 500
 
 if __name__ == "__main__":

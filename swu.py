@@ -13,6 +13,7 @@ app = Flask(__name__)
 
 # --- Configuration & Constants ---
 SWU_API_BASE = "https://swudb.com/api/deck/"
+SWU_API_BASE_FANCY = "https://swudb.com/api/deck/getFancyDeck/"
 IMAGE_BASE_URL = "https://swudb.com/cdn-cgi/image/quality=100/images"
 CANVAS_SIZE = (1800, 1200) # 6x4 at 300 DPI
 CARD_SIZE = (744, 1039)
@@ -189,8 +190,9 @@ HTML_TEMPLATE = """
 """
 
 class ProxyGenerator:
-    def __init__(self, deck_id):
+    def __init__(self, deck_id, isFancy):
         self.deck_id = deck_id
+        self.isFancy = isFancy
         self.temp_dir = tempfile.mkdtemp()
         self.print_array = []
         self.print_count = 1
@@ -230,7 +232,10 @@ class ProxyGenerator:
 
     def process_deck(self):
         """Main logic to fetch deck and generate images."""
-        resp = requests.get(f"{SWU_API_BASE}{self.deck_id}", timeout=10)
+        if self.isFancy:
+            resp = requests.get(f"{SWU_API_BASE_FANCY}{self.deck_id}", timeout=10)
+        else:    
+            resp = requests.get(f"{SWU_API_BASE}{self.deck_id}", timeout=10)
         if resp.status_code != 200:
             return None
         
@@ -297,6 +302,13 @@ def verify_deck_id(input_str):
         return None
     return deck_id
 
+def check_if_fancy(input_str):
+    fancyString = input_str.rstrip('/').split('/')[0]
+    if fancyString == "FANCY":
+        return True
+    else:
+        return False
+
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
@@ -305,11 +317,12 @@ def index():
 def download():
     raw_id = request.form.get('deckId')
     deck_id = verify_deck_id(raw_id)
-    
+    isFancy = check_if_fancy(raw_id)
+
     if not deck_id:
         return "Invalid Deck ID", 400
     notify(deck_id)
-    generator = ProxyGenerator(deck_id)
+    generator = ProxyGenerator(deck_id, isFancy)
     zip_file_path = generator.process_deck()
 
     if zip_file_path and os.path.exists(zip_file_path):

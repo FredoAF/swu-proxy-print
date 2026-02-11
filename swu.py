@@ -24,7 +24,13 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Download Deck Proxies | SWU</title>
+    <meta name="description" content="Convert your Star Wars: Unlimited (SWUDB) deck lists into printable 4x6 photo layouts. High-quality, easy-to-print proxies for playtesting.">
+    <meta name="keywords" content="Star Wars Unlimited, SWU, Proxy Generator, SWUDB, TCG Proxies, 4x6 photo prints">
+    <meta property="og:title" content="SWU Proxy Print Tool">
+    <meta property="og:description" content="Generate 4x6 photo-ready proxies for your SWU decks instantly.">
+    <meta property="og:type" content="website">
+    <link rel="canonical" href="https://swu-proxy.farren.uk/" />
+    <title>SWU Proxy Tool | Print Star Wars: Unlimited Decks to 4x6 Photo</title>
     <style>
         /* ... Your existing styles ... */
         body { background-color: #0b0b0b; color: #ffffff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }

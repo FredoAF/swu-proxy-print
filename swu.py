@@ -327,7 +327,7 @@ def download():
 
     if not deck_id:
         return "Invalid Deck ID", 400
-    notify(deck_id)
+    notify("https://swudb.com/deck/"+deck_id)
     generator = ProxyGenerator(deck_id, isFancy)
     zip_file_path = generator.process_deck()
 

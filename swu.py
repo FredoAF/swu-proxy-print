@@ -7,7 +7,14 @@ import requests
 import tempfile
 from pathlib import Path
 from PIL import Image
-from flask import Flask, make_response, render_template_string, request, send_file
+from flask import (
+    Flask,
+    make_response,
+    render_template_string,
+    send_from_directory,
+    request,
+    send_file,
+)
 
 app = Flask(__name__)
 
@@ -15,7 +22,7 @@ app = Flask(__name__)
 SWU_API_BASE = "https://swudb.com/api/deck/"
 SWU_API_BASE_FANCY = "https://swudb.com/api/deck/getFancyDeck/"
 IMAGE_BASE_URL = "https://swudb.com/cdn-cgi/image/quality=100/images"
-CANVAS_SIZE = (1800, 1200) # 6x4 at 300 DPI
+CANVAS_SIZE = (1800, 1200)  # 6x4 at 300 DPI
 CARD_SIZE = (744, 1039)
 
 HTML_TEMPLATE = """
@@ -24,13 +31,18 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Convert your Star Wars: Unlimited (SWUDB) deck lists into printable 4x6 photo layouts. High-quality, easy-to-print proxies for playtesting.">
-    <meta name="keywords" content="Star Wars Unlimited, SWU, Proxy Generator, SWUDB, TCG Proxies, 4x6 photo prints">
-    <meta property="og:title" content="SWU Proxy Print Tool">
+    <meta name="description" content="Convert your Star Wars: Unlimited (SWUDB.com) decks into printable 4x6 photos. High-quality, easy-to-print proxies for playtesting.">
+    <meta name="keywords" content="Star Wars Unlimited, SWU, proxies, proxy, Proxy Generator, SWUDB, TCG Proxies, 4x6 photo prints">
+    <meta property="og:title" content="SWUDB Proxy Prints | Print Star Wars: Unlimited Decks">
     <meta property="og:description" content="Generate 4x6 photo-ready proxies for your SWU decks instantly.">
     <meta property="og:type" content="website">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="SWU-Proxy" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="canonical" href="https://swu-proxy.farren.uk/" />
-    <title>SWU Proxy Tool | Print Star Wars: Unlimited Decks to 4x6 Photo</title>
+    <title>SWUDB Proxy Prints | Print Star Wars: Unlimited Decks</title>
     <style>
         /* ... Your existing styles ... */
         body { background-color: #0b0b0b; color: #ffffff; font-family: sans-serif; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -43,6 +55,17 @@ HTML_TEMPLATE = """
             line-height: 1.4;
             margin-bottom: 1.5rem;
             color: #ccc;
+        }
+        .warn-box {
+            background: #2e2a1a; 
+            padding: 1rem 1.25rem;
+            border-left: 5px solid #ffcc00; 
+            border-radius: 4px;     
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 1.5rem;
+            color: #f0e6d2;            
+            font-weight: 500;
         }
         /* Loading Spinner Styles */
         .loader-container { display: none; margin-top: 2rem; }
@@ -109,10 +132,14 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>SWU Proxy Prints</h1>
+        <h1>SWUDB Proxy Prints</h1>
 
         <div class="info-box">
             Other proxy download services are in letter or A4 size. Downloading proxies on 6x4 photo prints allows you to take advantage of relatively cheap photo printing services to get good quality prints on thicker photo paper, which work well once cut and sleeved.
+        </div>
+
+        <div class="warn-box">
+            The SWUDB deck must be saved, published and publically available, otherwise you will get an error.
         </div>
         
         <div id="form-section">
@@ -183,7 +210,7 @@ HTML_TEMPLATE = """
                     alert("Error: " + err);
                 }
             } catch (e) {
-                alert("Request failed. Check your connection.");
+                alert("Request failed. Make sure the SWUDB deck is saved, published and publically accessible.");
             } finally {
                 loader.style.display = 'none';
                 formSection.classList.remove('hidden');
@@ -195,6 +222,7 @@ HTML_TEMPLATE = """
 </html>
 """
 
+
 class ProxyGenerator:
     def __init__(self, deck_id, isFancy):
         self.deck_id = deck_id
@@ -205,7 +233,7 @@ class ProxyGenerator:
 
     def download_image(self, path):
         """Downloads image content from SWUDB."""
-        clean_path = path.replace('~', '')
+        clean_path = path.replace("~", "")
         url = f"{IMAGE_BASE_URL}{clean_path}"
         try:
             resp = requests.get(url, timeout=10)
@@ -217,8 +245,8 @@ class ProxyGenerator:
 
     def create_photo_layout(self, card1_data, card2_data, filename, rotate_cards=False):
         """Tiles two cards onto a 6x4 canvas."""
-        canvas = Image.new('RGB', CANVAS_SIZE, 'white')
-        
+        canvas = Image.new("RGB", CANVAS_SIZE, "white")
+
         c1 = Image.open(io.BytesIO(card1_data))
         c2 = Image.open(io.BytesIO(card2_data))
 
@@ -230,8 +258,8 @@ class ProxyGenerator:
         c2 = c2.resize(CARD_SIZE, resample=Image.Resampling.LANCZOS)
 
         # Positioning logic
-        canvas.paste(c1, (100, 100)) 
-        canvas.paste(c2, (900, 100)) 
+        canvas.paste(c1, (100, 100))
+        canvas.paste(c2, (900, 100))
 
         save_path = os.path.join(self.temp_dir, f"{filename}.jpg")
         canvas.save(save_path, dpi=(300, 300), quality=95)
@@ -240,67 +268,77 @@ class ProxyGenerator:
         """Main logic to fetch deck and generate images."""
         if self.isFancy:
             resp = requests.get(f"{SWU_API_BASE_FANCY}{self.deck_id}", timeout=10)
-        else:    
+        else:
             resp = requests.get(f"{SWU_API_BASE}{self.deck_id}", timeout=10)
         if resp.status_code != 200:
             return None
-        
+
         deck_json = resp.json()
 
         # 1. Process Leaders (Side-by-side Portrait)
-        for leader_key in ['leader', 'secondLeader']:
+        for leader_key in ["leader", "secondLeader"]:
             if deck_json.get(leader_key):
-                img_path = deck_json[leader_key]['defaultImagePath']
+                img_path = deck_json[leader_key]["defaultImagePath"]
                 front = self.download_image(img_path)
-                
+
                 # Attempt to find back side
-                back_path = img_path.replace(".png", "-back.png") # Simplified logic
+                back_path = img_path.replace(".png", "-back.png")  # Simplified logic
                 portrait_path = img_path.replace(".png", "-portrait.png")
-                back = self.download_image(back_path) or self.download_image(portrait_path) # Fallback to front if no back
-                
+                back = self.download_image(back_path) or self.download_image(
+                    portrait_path
+                )  # Fallback to front if no back
+
                 self.create_photo_layout(front, back, leader_key, rotate_cards=True)
 
         # 2. Process Base
-        base_img = self.download_image(deck_json['base']['defaultImagePath'])
+        base_img = self.download_image(deck_json["base"]["defaultImagePath"])
         if base_img:
             self.create_photo_layout(base_img, base_img, "base", rotate_cards=True)
 
         # 3. Process Main Deck
-        for item in deck_json.get('shuffledDeck', []):
-            card_img_data = self.download_image(item['card']['defaultImagePath'])
-            if not card_img_data: continue
+        for item in deck_json.get("shuffledDeck", []):
+            card_img_data = self.download_image(item["card"]["defaultImagePath"])
+            if not card_img_data:
+                continue
 
-            for _ in range(int(item['count'])):
+            for _ in range(int(item["count"])):
                 self.print_array.append(card_img_data)
-                
+
                 if len(self.print_array) == 2:
-                    self.create_photo_layout(self.print_array[0], self.print_array[1], f"deck_{self.print_count}")
+                    self.create_photo_layout(
+                        self.print_array[0],
+                        self.print_array[1],
+                        f"deck_{self.print_count}",
+                    )
                     self.print_array = []
                     self.print_count += 1
-        
+
         # Handle trailing card if deck is odd
         if self.print_array:
-            self.create_photo_layout(self.print_array[0], self.print_array[0], f"deck_{self.print_count}")
+            self.create_photo_layout(
+                self.print_array[0], self.print_array[0], f"deck_{self.print_count}"
+            )
 
         # Create ZIP
         zip_path = os.path.join(tempfile.gettempdir(), f"{self.deck_id}.zip")
-        shutil.make_archive(zip_path.replace('.zip', ''), 'zip', self.temp_dir)
-        
+        shutil.make_archive(zip_path.replace(".zip", ""), "zip", self.temp_dir)
+
         # Cleanup individual images
         shutil.rmtree(self.temp_dir)
         return zip_path
 
+
 def notify(msg):
-    requests.post("https://ntfy.sh/swu-proxy-farren", 
-      data=msg.encode(encoding='utf-8'),
-      headers={
-        "Title": "SWU",
-        "Tags": "bug"
-      })
+    requests.post(
+        "https://ntfy.sh/swu-proxy-farren",
+        data=msg.encode(encoding="utf-8"),
+        headers={"Title": "SWU", "Tags": "bug"},
+    )
+
 
 def verify_deck_id(input_str):
     """Clean and validate the deck ID."""
-    deck_id = input_str.rstrip('/').split('/')[-1]
+    deck_id = input_str.rstrip("/").split("/")[-1]
     # Simple alphanumeric check (SWUDB IDs are usually alphanumeric)
     if len(deck_id) >= 15:
         return None
@@ -308,33 +346,55 @@ def verify_deck_id(input_str):
         return None
     return deck_id
 
+
 def check_if_fancy(input_str):
-    fancyString = input_str.rstrip('/').split('/')[0]
+    fancyString = input_str.rstrip("/").split("/")[0]
     if fancyString == "FANCY":
         return True
     else:
         return False
 
-@app.route('/')
+
+@app.route("/")
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-@app.route('/download', methods=['POST'])
+
+@app.route("/<path:filename>")
+def serve_file(filename):
+    """
+    Tries to serve the requested filename from FILES_DIRECTORY.
+    The <path:filename> converter allows for subdirectories.
+    """
+    try:
+        # send_from_directory is secure: it prevents "directory traversal"
+        # (e.g., prevents someone from requesting ../../etc/passwd)
+        return send_from_directory("/app", filename)
+    except FileNotFoundError:
+        # If the file isn't there, we can fallback to a 404 or a default page
+        abort(404)
+
+
+@app.route("/download", methods=["POST"])
 def download():
-    raw_id = request.form.get('deckId')
+    raw_id = request.form.get("deckId")
     deck_id = verify_deck_id(raw_id)
     isFancy = check_if_fancy(raw_id)
 
     if not deck_id:
         return "Invalid Deck ID", 400
-    notify("https://swudb.com/deck/"+deck_id)
+    notify("https://swudb.com/deck/" + deck_id)
     generator = ProxyGenerator(deck_id, isFancy)
     zip_file_path = generator.process_deck()
 
     if zip_file_path and os.path.exists(zip_file_path):
         return send_file(zip_file_path, as_attachment=True)
     notify("500 error")
-    return "Failed to generate proxy deck.", 500
+    return (
+        "Request failed. Make sure the SWUDB deck is saved, published and publically accessible.",
+        500,
+    )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=False)
